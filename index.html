@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Renovações</title>
+<style>
+    :root { --primary: #a78bfa; --success: #10b981; --danger: #ef4444; }
+    body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 100%);
+        margin: 0; padding: 15px;
+    }
+    h3 { text-align: center; color: var(--primary); margin: 15px 0 25px; }
+    .header { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .box {
+        background: white;
+        padding: 16px;
+        margin-bottom: 16px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    textarea {
+        width: 100%;
+        height: 140px;
+        padding: 12px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-family: monospace;
+    }
+    button {
+        padding: 12px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .btn-primary { background: var(--primary); color: white; flex: 1; }
+    .btn-secondary { background: #666; color: white; }
+    .progress { height: 8px; background: #eee; border-radius: 10px; margin: 12px 0; overflow: hidden; }
+    .bar { height: 100%; width: 0%; background: #f59e0b; transition: width 0.4s ease; }
+    .status { margin-top: 8px; font-weight: 500; min-height: 24px; }
+    .success { color: var(--success); }
+    .error { color: var(--danger); }
+</style>
+</head>
+<body>
+    <h3>🚀 Painel de Renovações</h3>
+  
+    <div class="header">
+        <button onclick="enviarTodos()" class="btn-primary">📤 Enviar Todos</button>
+        <button onclick="limparTodos()" class="btn-secondary">🗑️ Limpar Todos</button>
+    </div>
+    <div id="container"></div>
+<script>
+const API_URL = "COLE_AQUI_A_URL_NOVA_DO_SCRIPT";   // ← troque esta linha
+for (let i = 0; i < 25; i++) {
+    document.getElementById("container").innerHTML += `
+        <div class="box">
+            <textarea id="txt${i}" placeholder="Cole o texto da renovação aqui..."></textarea>
+            <div style="display:flex; gap:10px; margin-top:12px;">
+                <button onclick="enviar(${i})" class="btn-primary">Enviar</button>
+                <button onclick="limpar(${i})" class="btn-secondary">Limpar</button>
+            </div>
+            <div class="progress"><div class="bar" id="bar${i}"></div></div>
+            <div class="status" id="status${i}"></div>
+        </div>`;
+}
+function extrair(texto) {
+    texto = texto.replace(/[*_~`]/g, "").trim();
+    const usuarioMatch = texto.match(/Usu[áa]rio:?\s*([^\n]+)/i);
+    const dataMatch = texto.match(/(\d{2}\/\d{2}\/\d{4})/);
+    if (!usuarioMatch || !dataMatch) return null;
+    return {
+        usuario: usuarioMatch[1].trim(),
+        vencimento: dataMatch[1]
+    };
+}
+async function enviar(i) {
+    const texto = document.getElementById(`txt${i}`).value.trim();
+    const statusEl = document.getElementById(`status${i}`);
+    const bar = document.getElementById(`bar${i}`);
+    if (!texto) {
+        statusEl.innerHTML = "❌ Cole o texto primeiro";
+        statusEl.className = "status error";
+        return;
+    }
+    const dados = extrair(texto);
+    if (!dados) {
+        statusEl.innerHTML = "❌ Formato inválido<br>Precisa ter Usuário e data dd/mm/aaaa";
+        statusEl.className = "status error";
+        return;
+    }
+    bar.style.width = "40%";
+    bar.style.background = "#f59e0b";
+    statusEl.innerHTML = `Enviando ${dados.usuario}...`;
+    try {
+        const res = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "text/plain;charset=utf-8"
+            },
+            body: JSON.stringify(dados)
+        });
+        const textoResposta = await res.text();
+        console.log("Resposta bruta:", textoResposta);
+        let resp;
+        try {
+            resp = JSON.parse(textoResposta);
+        } catch (err) {
+            throw new Error("Resposta inválida do servidor");
+        }
+        if (resp.status === "erro") {
+            throw new Error(resp.mensagem || "Erro no script");
+        }
+        bar.style.width = "100%";
+        bar.style.background = "#10b981";
+        statusEl.innerHTML = `✅ ${dados.usuario} → ${dados.vencimento} (${resp.acao || resp.mensagem || "ok"})`;
+        statusEl.className = "status success";
+        localStorage.setItem("box" + i, texto);
+    } catch (e) {
+        console.error(e);
+        bar.style.background = "#ef4444";
+        statusEl.innerHTML = "❌ " + e.message;
+        statusEl.className = "status error";
+    }
+}
+function limpar(i) {
+    localStorage.removeItem("box" + i);
+    document.getElementById(`txt${i}`).value = "";
+    document.getElementById(`bar${i}`).style.width = "0";
+    document.getElementById(`status${i}`).innerHTML = "";
+}
+function limparTodos() {
+    if (confirm("Limpar todas as caixas?")) {
+        for (let i = 0; i < 25; i++) limpar(i);
+    }
+}
+async function enviarTodos() {
+    if (!confirm("Enviar todas as caixas?")) return;
+    for (let i = 0; i < 25; i++) {
+        if (document.getElementById(`txt${i}`).value.trim()) await enviar(i);
+    }
+}
+window.onload = () => {
+    for (let i = 0; i < 25; i++) {
+        const salvo = localStorage.getItem("box" + i);
+        if (salvo) document.getElementById(`txt${i}`).value = salvo;
+    }
+};
+</script>
+</body>
+</html>
